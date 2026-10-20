@@ -24,7 +24,7 @@ jobs:
           cp /tmp/tun2socks android/jniLibs/arm64-v8a/libtun2socks.so
 
       - name: Build APK
-        uses: ArtemSBulgakov/buildozer-action@v2
+        uses: ArtemSBulgakov/buildozer-action@v1.2.0
         with:
           workdir: android
           buildozer_version: master
