@@ -39,15 +39,21 @@ def get_activity():
 
 
 def ctx():
-    """当前应用 Context。"""
+    """当前应用 Context。可能返回 None（currentApplication 在线程早期为 null）。"""
     act = get_activity()
     if act is not None:
         return act
-    return ActivityThread.currentApplication()
+    try:
+        return ActivityThread.currentApplication()
+    except Exception:
+        return None
 
 
 def app_uid() -> int:
-    return ctx().getApplicationInfo().uid
+    c = ctx()
+    if c is None:
+        raise RuntimeError("拿不到 Context，无法查询 UID")
+    return c.getApplicationInfo().uid
 
 
 def vpn_prepare() -> bool:
@@ -63,6 +69,10 @@ def vpn_prepare() -> bool:
     def _run_on_main():
         try:
             c = ctx()
+            if c is None:
+                proxy_log("vpn_prepare: 拿不到 Context（Activity/Application 均为 null）")
+                result["granted"] = False
+                return
             intent = VpnService.prepare(c)
             if intent is not None:
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -114,12 +124,17 @@ def build_vpn_fd(socks_addr: str, socks_port: int, dns: str):
 
 def tun2socks_cmd() -> str:
     """jniLibs 里的 tun2socks 可执行路径（打包为 libtun2socks.so）。"""
-    return os.path.join(ctx().getApplicationInfo().nativeLibraryDir, "libtun2socks.so")
+    c = ctx()
+    if c is None:
+        raise RuntimeError("拿不到 Context，无法定位 tun2socks")
+    return os.path.join(c.getApplicationInfo().nativeLibraryDir, "libtun2socks.so")
 
 
 def notify(title: str, text: str):
     """更新前台服务通知。"""
     c = ctx()
+    if c is None:
+        return
     nm = c.getSystemService(Context.NOTIFICATION_SERVICE)
     if BuildVersion.SDK_INT >= 26:
         ch = NotificationChannel(CHANNEL_ID, "ant-py VPN", NotificationManager.IMPORTANCE_LOW)
