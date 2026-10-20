@@ -11,18 +11,32 @@ Intent = autoclass("android.content.Intent")
 VpnService = autoclass("android.net.VpnService")
 ParcelFileDescriptor = autoclass("android.os.ParcelFileDescriptor")
 BuildVersion = autoclass("android.os.Build$VERSION")
-PythonActivity = autoclass("org.kivy.android.PythonActivity")
 NotificationChannel = autoclass("android.app.NotificationChannel")
 NotificationManager = autoclass("android.app.NotificationManager")
 Notification = autoclass("android.app.Notification")
+# flet build 的 APK 没有 Kivy 的 PythonActivity;通过当前运行的 activity 拿 Context
+ActivityThread = autoclass("android.app.ActivityThread")
 
 CHANNEL_ID = "ant_py_vpn"
 NOTIFY_ID = 1
 SERVICE_INTENT_ACTION = "org.antpy.VPN_SERVICE"
 
+_activity = None
+
 
 def ctx():
-    return PythonActivity.mActivity
+    """当前应用 Context。优先用已缓存的 activity;否则用 system context（足以发起 VPN 授权对话框）。"""
+    global _activity
+    if _activity is None:
+        try:
+            from jnius import autoclass as _ac
+            act_cls = _ac("android.app.Activity")
+            _activity = ActivityThread.currentActivity()
+        except Exception:
+            _activity = None
+    if _activity is not None:
+        return _activity
+    return ActivityThread.currentApplication()
 
 
 def app_uid() -> int:
