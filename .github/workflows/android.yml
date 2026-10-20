@@ -3,7 +3,7 @@ name: build-android-apk
 on:
   push:
     branches: [main, master]
-    paths: ['android/**', 'proxycore.py', 'paths.py', 'nodes.json', 'bypass_list.txt']
+    paths: ['android/**', 'proxycore.py', 'paths.py', 'nodes.json', 'bypass_list.txt', '.github/workflows/android.yml']
   workflow_dispatch:
 
 jobs:
@@ -12,25 +12,45 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential git zip unzip openjdk-17-jdk \
+            autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev \
+            libtinfo5 cmake libffi-dev libssl-dev gettext autoconf automake
+        continue-on-error: false
+
       - name: Download hev-socks5-tunnel (arm64)
         run: |
           mkdir -p android/jniLibs/arm64-v8a
-          # 从 hev-socks5-tunnel releases 取 arm64 静态二进制，重命名为 libtun2socks.so
-          # （Android 只允许 exec 自己 nativeLibraryDir 下的文件）
           URL=$(curl -s https://api.github.com/repos/hev-socks5/hev-socks5-tunnel/releases/latest \
-            | grep browser_download_url | grep android | grep arm64 | cut -d '"' -f 4 | head -1)
+            | grep browser_download_url | grep -i "android\|aarch64\|arm64" | cut -d '"' -f 4 | head -1)
           echo "URL=$URL"
+          if [ -z "$URL" ]; then
+            echo "no android asset found, list all assets:"
+            curl -s https://api.github.com/repos/hev-socks5/hev-socks5-tunnel/releases/latest | grep browser_download_url
+            exit 1
+          fi
           curl -L -o /tmp/tun2socks "$URL"
           cp /tmp/tun2socks android/jniLibs/arm64-v8a/libtun2socks.so
+          ls -la android/jniLibs/arm64-v8a/
+
+      - name: Install buildozer
+        run: pip install --upgrade pip cython==0.29.36 virtualenv && pip install buildozer
 
       - name: Build APK
-        uses: ArtemSBulgakov/buildozer-action@v1.2.0
-        with:
-          workdir: android
-          buildozer_version: master
+        working-directory: android
+        run: |
+          yes | buildozer android debug || buildozer android debug
+          ls -la bin/
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: antpy-apk
           path: android/bin/*.apk
+          if-no-files-found: error
