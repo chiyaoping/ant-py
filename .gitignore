@@ -19,3 +19,6 @@ android/flet-template/{{cookiecutter.out_dir}}/android/app/src/main/jniLibs/*.so
 
 # OMC 状态
 .omc/
+
+# 本地 APK 下载目录
+release/
