@@ -5,6 +5,7 @@
 import os
 
 from jnius import autoclass, PythonJavaClass, java_method
+from threading import Event
 
 Context = autoclass("android.content.Context")
 Intent = autoclass("android.content.Intent")
@@ -16,6 +17,8 @@ NotificationManager = autoclass("android.app.NotificationManager")
 Notification = autoclass("android.app.Notification")
 # flet build 的 APK 没有 Kivy 的 PythonActivity;通过当前运行的 activity 拿 Context
 ActivityThread = autoclass("android.app.ActivityThread")
+Handler = autoclass("android.os.Handler")
+Looper = autoclass("android.os.Looper")
 
 CHANNEL_ID = "ant_py_vpn"
 NOTIFY_ID = 1
@@ -50,16 +53,44 @@ def app_uid() -> int:
 def vpn_prepare() -> bool:
     """检查/请求 VPN 权限。返回 True 表示已授权；False 表示已弹出系统授权对话框。
 
-    授权对话框经 startActivity(FLAG_ACTIVITY_NEW_TASK) 发起 —— Application 上下文
-    没有 startActivityForResult;用户授权后需再点一次「连接」(简化实现)。
+    在后台线程（flet on_click）直接调用 ActivityThread.currentActivity() 返回 None，
+    退化为 Application 上下文后 startActivity 会被系统静默拦截 —— 必须把对话框
+    的启动 post 回主线程（Looper.mainLooper 的 Handler），在主线程拿 Activity 再启动。
+    用户授权后需再点一次「连接」(简化实现)。
     """
-    c = ctx()
-    intent = VpnService.prepare(c)
-    if intent is None:
-        return True
-    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    c.startActivity(intent)
-    return False
+    result = {"granted": True}
+
+    def _run_on_main():
+        try:
+            c = ctx()
+            intent = VpnService.prepare(c)
+            if intent is not None:
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                c.startActivity(intent)
+                result["granted"] = False
+        except Exception as ex:
+            proxy_log(f"vpn_prepare 异常: {ex}")
+            result["granted"] = False
+        finally:
+            done.set()
+
+    done = Event()
+
+    def proxy_log(msg):
+        try:
+            import proxycore
+            proxycore.log(msg)
+        except Exception:
+            pass
+
+    if Looper.myLooper() == Looper.getMainLooper():
+        _run_on_main()
+    else:
+        Handler(Looper.getMainLooper()).post(_run_on_main)
+        if not done.wait(10):
+            proxy_log("vpn_prepare 主线程超时")
+            return False
+    return result["granted"]
 
 
 def build_vpn_fd(socks_addr: str, socks_port: int, dns: str):
