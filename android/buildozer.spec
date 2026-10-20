@@ -1,5 +1,6 @@
 [app]
 title = ant-py
+version = 1.0.0
 package.name = antpy
 package.domain = org.antpy
 package.icon = assets/icon.png
