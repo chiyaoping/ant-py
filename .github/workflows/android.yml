@@ -1,0 +1,36 @@
+name: build-android-apk
+
+on:
+  push:
+    branches: [main, master]
+    paths: ['android/**', 'proxycore.py', 'paths.py', 'nodes.json', 'bypass_list.txt']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download hev-socks5-tunnel (arm64)
+        run: |
+          mkdir -p android/jniLibs/arm64-v8a
+          # 从 hev-socks5-tunnel releases 取 arm64 静态二进制，重命名为 libtun2socks.so
+          # （Android 只允许 exec 自己 nativeLibraryDir 下的文件）
+          URL=$(curl -s https://api.github.com/repos/hev-socks5/hev-socks5-tunnel/releases/latest \
+            | grep browser_download_url | grep android | grep arm64 | cut -d '"' -f 4 | head -1)
+          echo "URL=$URL"
+          curl -L -o /tmp/tun2socks "$URL"
+          cp /tmp/tun2socks android/jniLibs/arm64-v8a/libtun2socks.so
+
+      - name: Build APK
+        uses: ArtemSBulgakov/buildozer-action@v2
+        with:
+          workdir: android
+          buildozer_version: master
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: antpy-apk
+          path: android/bin/*.apk

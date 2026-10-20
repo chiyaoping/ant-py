@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec.bak
+
+# 打包产物
+android/bin/
+.android_build/
+
+# 大文件：Windows 内核不放安卓仓库（安卓版用不到 mihomo.exe/wintun.dll）
+bin/mihomo.exe
+bin/wintun.dll
+bin/mihomo/
+
+# jniLibs 的 tun2socks 由 CI 自动下载
+android/jniLibs/
+
+# OMC 状态
+.omc/

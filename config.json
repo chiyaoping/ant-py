@@ -1,0 +1,20 @@
+{
+  "listen_port": 1080,
+  "bind_addr": "127.0.0.1",
+  "is_global": true,
+  "selected": {
+    "Group": 2,
+    "City": "印度尼西亚",
+    "Address": "172.232.237.247",
+    "Port": 8080,
+    "Password": "Ibf*-3Zf1=cKldnTous",
+    "Description": "稳定-印度尼西亚30",
+    "Plugin": null,
+    "Plugin_opts": null,
+    "IsLegacyUrl": false,
+    "Protocol": "ws",
+    "CountryCode": "ID",
+    "Method": "aes-256-cfb"
+  },
+  "aff": 21347001
+}
