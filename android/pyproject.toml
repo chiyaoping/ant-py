@@ -14,3 +14,7 @@ split_per_abi = true
 [tool.flet.android.permission]
 # VPN 前台服务 + 通知
 FOREGROUND_SERVICE = true
+
+[tool.flet.flutter.pubspec]
+# Flutter 3.27.4 (Dart 3.6) 与 webview_flutter_android 4.11+(Dart 3.9)冲突,锁旧版
+dependency_overrides = { webview_flutter_android = "4.10.0" }
