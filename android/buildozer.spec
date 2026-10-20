@@ -14,7 +14,7 @@ source.exclude_dirs = build,dist,bin,__pycache__,.omc,.buildozer,libs
 # tun2socks 可执行文件（hev-socks5-tunnel，CI 下载到 libs/arm64-v8a/）
 android.add_libs_arm64_v8a = libs/arm64-v8a/*.so
 
-requirements = python3,flet==0.24.1,cryptography==43.0.3,pyjnius,android
+requirements = python3,flet==0.24.1,flet-runtime==0.24.1,flet-core==0.24.1,cryptography==43.0.3,pyjnius,android
 
 # Flet 需要网络/前台服务/通知权限；VPN 权限由 pyjnius 调 VpnService 获取
 android.permissions = INTERNET,FOREGROUND_SERVICE,FOREGROUND_SERVICE_SPECIAL_USE,POST_NOTIFICATIONS,WAKE_LOCK
