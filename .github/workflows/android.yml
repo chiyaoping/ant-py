@@ -25,17 +25,18 @@ jobs:
         run: |
           JNI="android/flet-template/{{cookiecutter.out_dir}}/android/app/src/main/jniLibs/arm64-v8a"
           mkdir -p "$JNI"
-          URL=$(curl -s https://api.github.com/repos/heiher/hev-socks5-tunnel/releases/latest \
-            | grep browser_download_url | grep "android-arm64-v8a" | cut -d '"' -f 4 | head -1)
-          echo "URL=$URL"
-          if [ -z "$URL" ]; then
-            echo "no android asset found:"
-            curl -s https://api.github.com/repos/heiher/hev-socks5-tunnel/releases/latest | grep browser_download_url
-            exit 1
+          # 固定版本直链（CI 里 GitHub API 可能被限流，故优先直链，失败再查 API）
+          URL="https://github.com/heiher/hev-socks5-tunnel/releases/download/2.19.1/hev-socks5-tunnel-android-arm64-v8a"
+          if ! curl -fL --retry 3 -o "$JNI/libtun2socks.so" "$URL"; then
+            echo "pinned URL failed, querying API..."
+            URL=$(curl -s https://api.github.com/repos/heiher/hev-socks5-tunnel/releases/latest \
+              | grep browser_download_url | grep "android-arm64-v8a" | cut -d '"' -f 4 | head -1)
+            echo "URL=$URL"
+            curl -fL --retry 3 -o "$JNI/libtun2socks.so" "$URL"
           fi
-          curl -L -o "$JNI/libtun2socks.so" "$URL"
           chmod +x "$JNI/libtun2socks.so"
           ls -la "$JNI"
+          file "$JNI/libtun2socks.so" || true
 
       - name: Install flet CLI
         run: pip install "flet[all]==0.27.5" || pip install flet-cli==0.27.5
