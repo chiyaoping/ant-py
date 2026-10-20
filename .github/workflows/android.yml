@@ -20,8 +20,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq build-essential git zip unzip openjdk-17-jdk \
-            autoconf libtool pkg-config zlib1g-dev libncurses-dev \
-            cmake libffi-dev libssl-dev gettext automake
+            autoconf libtool libtool-bin libltdl-dev pkg-config zlib1g-dev libncurses-dev \
+            cmake libffi-dev libssl-dev gettext automake m4
         continue-on-error: false
 
       - name: Download hev-socks5-tunnel (arm64)
