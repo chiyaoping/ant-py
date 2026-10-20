@@ -26,18 +26,18 @@ jobs:
 
       - name: Download hev-socks5-tunnel (arm64)
         run: |
-          mkdir -p android/jniLibs/arm64-v8a
+          mkdir -p android/libs/arm64-v8a
           URL=$(curl -s https://api.github.com/repos/heiher/hev-socks5-tunnel/releases/latest \
             | grep browser_download_url | grep "android-arm64-v8a" | cut -d '"' -f 4 | head -1)
           echo "URL=$URL"
           if [ -z "$URL" ]; then
             echo "no android asset found, list all assets:"
-            curl -s https://api.github.com/repos/hev-socks5/hev-socks5-tunnel/releases/latest | grep browser_download_url
+            curl -s https://api.github.com/repos/heiher/hev-socks5-tunnel/releases/latest | grep browser_download_url
             exit 1
           fi
           curl -L -o /tmp/tun2socks "$URL"
-          cp /tmp/tun2socks android/jniLibs/arm64-v8a/libtun2socks.so
-          ls -la android/jniLibs/arm64-v8a/
+          cp /tmp/tun2socks android/libs/arm64-v8a/libtun2socks.so
+          ls -la android/libs/arm64-v8a/
 
       - name: Copy shared sources into android/ (buildozer 只打包 source.dir 下的文件)
         run: |

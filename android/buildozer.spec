@@ -9,7 +9,10 @@ package.icon = assets/icon.png
 # 共享文件 proxycore.py / paths.py / nodes.json / bypass_list.txt 由 CI 复制进本目录后打包
 source.dir = .
 source.include_exts = py,json,txt,png
-source.exclude_dirs = build,dist,bin,__pycache__,.omc,.buildozer,jniLibs
+source.exclude_dirs = build,dist,bin,__pycache__,.omc,.buildozer,libs
+
+# tun2socks 可执行文件（hev-socks5-tunnel，CI 下载到 libs/arm64-v8a/）
+android.add_libs_arm64_v8a = libs/arm64-v8a/*.so
 
 requirements = python3,flet==0.24.1,cryptography==43.0.3,pyjnius,android
 
