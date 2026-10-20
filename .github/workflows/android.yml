@@ -43,7 +43,7 @@ jobs:
       - name: Build APK (flet build + 自带模板含 jniLibs)
         working-directory: android
         run: |
-          flet build apk -v --module-name main --template ../flet-template
+          flet build apk -v --module-name main --template "$PWD/flet-template"
           find build -name "*.apk" | head -5
 
       - name: Upload APK artifact
