@@ -27,8 +27,8 @@ jobs:
       - name: Download hev-socks5-tunnel (arm64)
         run: |
           mkdir -p android/jniLibs/arm64-v8a
-          URL=$(curl -s https://api.github.com/repos/hev-socks5/hev-socks5-tunnel/releases/latest \
-            | grep browser_download_url | grep -i "android\|aarch64\|arm64" | cut -d '"' -f 4 | head -1)
+          URL=$(curl -s https://api.github.com/repos/heiher/hev-socks5-tunnel/releases/latest \
+            | grep browser_download_url | grep "android-arm64-v8a" | cut -d '"' -f 4 | head -1)
           echo "URL=$URL"
           if [ -z "$URL" ]; then
             echo "no android asset found, list all assets:"
