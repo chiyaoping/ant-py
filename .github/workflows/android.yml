@@ -37,12 +37,12 @@ jobs:
           ls -la android/jniLibs/arm64-v8a/
 
       - name: Install flet CLI
-        run: pip install "flet[all]==0.27.6" || pip install flet-cli==0.27.6
+        run: pip install "flet[all]==0.27.5" || pip install flet-cli==0.27.5
 
       - name: Build APK (flet build,自动装 Flutter/JDK/Android SDK)
         working-directory: android
         run: |
-          flet build apk -v --module-name main
+          flet build apk -v --module-name main --template-ref 0.27.5
           find build -name "*.apk" | head -5
 
       - name: Upload APK artifact
