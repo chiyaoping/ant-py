@@ -3,7 +3,7 @@ name: build-android-apk
 on:
   push:
     branches: [main, master]
-    paths: ['android/**', 'proxycore.py', 'paths.py', 'nodes.json', 'bypass_list.txt', '.github/workflows/android.yml']
+    paths: ['android/**', 'proxycore.py', 'paths.py', 'nodes.json', 'bypass_list.txt', 'config.json', '.github/workflows/android.yml']
   workflow_dispatch:
 
 jobs:
@@ -14,48 +14,40 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.12'
 
-      - name: Install system dependencies
+      - name: Copy shared sources into android/ (flet build 打包 app 目录下所有文件)
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq build-essential git zip unzip openjdk-17-jdk \
-            autoconf libtool libtool-bin libltdl-dev pkg-config zlib1g-dev libncurses-dev \
-            cmake libffi-dev libssl-dev gettext automake m4
-        continue-on-error: false
+          cp proxycore.py paths.py nodes.json bypass_list.txt config.json android/
+          ls android/
 
       - name: Download hev-socks5-tunnel (arm64)
         run: |
-          mkdir -p android/libs/arm64-v8a
+          mkdir -p android/jniLibs/arm64-v8a
           URL=$(curl -s https://api.github.com/repos/heiher/hev-socks5-tunnel/releases/latest \
             | grep browser_download_url | grep "android-arm64-v8a" | cut -d '"' -f 4 | head -1)
           echo "URL=$URL"
           if [ -z "$URL" ]; then
-            echo "no android asset found, list all assets:"
+            echo "no android asset found:"
             curl -s https://api.github.com/repos/heiher/hev-socks5-tunnel/releases/latest | grep browser_download_url
             exit 1
           fi
           curl -L -o /tmp/tun2socks "$URL"
-          cp /tmp/tun2socks android/libs/arm64-v8a/libtun2socks.so
-          ls -la android/libs/arm64-v8a/
+          cp /tmp/tun2socks android/jniLibs/arm64-v8a/libtun2socks.so
+          ls -la android/jniLibs/arm64-v8a/
 
-      - name: Copy shared sources into android/ (buildozer 只打包 source.dir 下的文件)
-        run: |
-          cp proxycore.py paths.py nodes.json bypass_list.txt android/
-          ls android/
+      - name: Install flet CLI
+        run: pip install "flet[all]==0.27.6" || pip install flet-cli==0.27.6
 
-      - name: Install buildozer
-        run: pip install --upgrade pip cython==0.29.36 virtualenv && pip install buildozer
-
-      - name: Build APK
+      - name: Build APK (flet build,自动装 Flutter/JDK/Android SDK)
         working-directory: android
         run: |
-          yes | buildozer android debug || buildozer android debug
-          ls -la bin/
+          flet build apk -v --module-name main
+          find build -name "*.apk" | head -5
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: antpy-apk
-          path: android/bin/*.apk
+          path: android/build/**/outputs/**/*.apk
           if-no-files-found: error

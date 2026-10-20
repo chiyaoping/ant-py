@@ -1,0 +1,16 @@
+[project]
+name = "antpy"
+version = "1.0.0"
+description = "ant-py proxy client for Android"
+
+[tool.flet]
+org = "org.antpy"
+product = "ant-py"
+permissions = ["internet", "wake_lock"]
+
+[tool.flet.android]
+split_per_abi = true
+
+[tool.flet.android.permission]
+# VPN 前台服务 + 通知
+FOREGROUND_SERVICE = true
