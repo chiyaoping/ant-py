@@ -1,8 +1,7 @@
 """main — Flet UI：ant-py 安卓版。
 
-复用 proxycore.ENGINE / STATS / LOG_SUBS（桌面版同款引擎）。
-VPN 全接管通过 service.py 前台服务 + VpnService 完成：
-连接按钮 → vpn_prepare（系统授权）→ 写状态文件 → 服务建立 TUN + tun2socks。
+复用桌面版 proxycore.ENGINE / STATS / LOG_SUBS 引擎。
+VPN 全接管在主进程内完成：bridge（pyjnius 建 TUN）+ vpnctl（tun2socks 子进程）。
 """
 import json
 import os
@@ -13,7 +12,6 @@ import time
 
 import flet as ft
 
-# 复用桌面版核心：仓库根（android/ 的上级）加进 path
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -22,26 +20,22 @@ import paths
 
 IS_ANDROID = "ANDROID_DATA" in os.environ or "ANDROID_ROOT" in os.environ
 
-# 桌面调试时 proxycore 可直接用；安卓上 service 进程里也 import 同一份 proxycore
 import proxycore
 
 ENGINE = proxycore.ENGINE
 STATS = proxycore.STATS
 
-STATE_FILE = os.path.join(os.environ.get("HOME", "."), "vpn_state.json")
-
 FLAGS = {"ID":"🇮🇩","GB":"🇬🇧","US":"🇺🇸","SG":"🇸🇬","JP":"🇯🇵","TW":"🇹🇼","AU":"🇦🇺",
          "HK":"🇭🇰","KR":"🇰🇷","DE":"🇩🇪","FR":"🇫🇷","CA":"🇨🇦","NL":"🇳🇱","CN":"🇨🇳"}
 
-BG   = "#1b1c22"
-BG2  = "#26272e"
-BG3  = "#2d2e36"
-FG   = "#e8e8ea"
+BG     = "#1b1c22"
+BG2    = "#26272e"
+BG3    = "#2d2e36"
+FG     = "#e8e8ea"
 FG_DIM = "#9a9aa2"
 ACCENT = "#4f8cff"
 GREEN  = "#3ecf6f"
 RED    = "#ff5c5c"
-ORANGE = "#f0a63a"
 
 
 def fmt_bytes(n):
@@ -84,52 +78,51 @@ class AntApp:
         self.page = page
         page.title = "ant-py"
         page.bgcolor = BG
-        page.padding = 16
+        page.padding = 12
         page.theme_mode = ft.ThemeMode.DARK
 
-        self.vpn_connected = False
         self.speed = {}
         self.log_lines = []
-        self._log_seq = 0
 
         self.status_dot = ft.Container(width=12, height=12, border_radius=6, bgcolor=RED)
-        self.status_text = ft.Text("未连接", color=FG, size=16, weight=ft.FontWeight.BOLD)
-        self.node_label = ft.Text("", color=FG_DIM, size=13)
+        self.status_text = ft.Text("未连接", color=FG, size=15, weight=ft.FontWeight.BOLD)
+        self.node_label = ft.Text("", color=FG_DIM, size=12)
 
         self.btn_connect = ft.ElevatedButton(
             "连接", icon=ft.icons.PLAY_ARROW, bgcolor=GREEN, color="#111",
-            on_click=self.on_connect, style=ft.ButtonStyle(padding=ft.padding.symmetric(20, 12)))
+            on_click=self.on_connect)
         self.btn_disconnect = ft.ElevatedButton(
             "断开", icon=ft.icons.STOP, bgcolor=RED, color="#111",
-            on_click=self.on_disconnect, style=ft.ButtonStyle(padding=ft.padding.symmetric(20, 12)))
+            on_click=self.on_disconnect)
 
         self.switch_global = ft.Switch(
             label="全局模式（关=按内置名单分流）", value=ENGINE.is_global,
             active_color=ACCENT, on_change=self.on_toggle_global)
 
-        self.stats_text = ft.Text("", color=FG_DIM, size=12, selectable=True)
+        self.stats_text = ft.Text("", color=FG_DIM, size=11, selectable=True)
         self.btn_speed = ft.ElevatedButton(
             "⚡ 全节点测速", icon=ft.icons.BOLT, bgcolor=ACCENT, color="#111",
-            on_click=self.on_speed_all, style=ft.ButtonStyle(padding=ft.padding.symmetric(16, 10)))
-        self.speed_hint = ft.Text("", color=FG_DIM, size=12)
+            on_click=self.on_speed_all)
+        self.speed_hint = ft.Text("", color=FG_DIM, size=11)
 
-        self.nodes_column = ft.Column(spacing=6, scroll=ft.ScrollMode.AUTO, expand=True)
-        self.log_text = ft.Text("", color=FG_DIM, size=11, selectable=True,
-                                font_family="monospace", no_wrap=False)
+        # 节点区：平铺 ListView（组头 + 节点行），比 ExpansionTile 可靠
+        self.nodes_list = ft.ListView(expand=True, spacing=2, padding=4)
+
+        self.log_text = ft.Text("", color=FG_DIM, size=10, selectable=True,
+                                font_family="monospace")
         self.log_container = ft.Container(
             content=ft.Column([self.log_text], scroll=ft.ScrollMode.AUTO, auto_scroll=True),
-            bgcolor=BG3, border_radius=8, padding=10, height=180)
+            bgcolor=BG3, border_radius=8, padding=8, height=140)
 
         page.add(
-            ft.Row([self.status_dot, self.status_text, self.node_label],
-                   alignment=ft.MainAxisAlignment.START, spacing=10),
-            ft.Row([self.btn_connect, self.btn_disconnect], spacing=10),
+            ft.Row([self.status_dot, self.status_text, self.node_label], spacing=8),
+            ft.Row([self.btn_connect, self.btn_disconnect], spacing=8),
             self.switch_global,
-            ft.Row([self.stats_text], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            ft.Row([self.btn_speed, self.speed_hint], spacing=10),
-            ft.Container(content=self.nodes_column, expand=True),
-            ft.Text("日志", color=FG_DIM, size=12),
-            self.log_container,
+            self.stats_text,
+            ft.Row([self.btn_speed, self.speed_hint], spacing=8),
+            ft.Container(content=self.nodes_list, expand=True, bgcolor=BG2,
+                         border_radius=8, padding=4),
+            ft.Container(content=self.log_container, height=150),
         )
 
         proxycore.LOG_SUBS.append(self._on_log)
@@ -137,36 +130,44 @@ class AntApp:
         self._sync_ui()
         self._start_timer()
 
+    # ---------- timers / log ----------
     def _start_timer(self):
-        # flet 0.24 无 Page.set_interval，用 threading.Timer 兜底（page.update 线程安全）
         t = threading.Timer(1.0, self._tick_timer)
         t.daemon = True
         t.start()
 
     def _tick_timer(self):
-        self._tick()
+        try:
+            s = STATS
+            self.stats_text.value = (
+                f"↑ {fmt_bytes(s.up)}   ↓ {fmt_bytes(s.down)}   "
+                f"连接 {s.conns}   总计 {s.total}   错误 {s.errors}")
+            self.page.update()
+        except Exception:
+            pass
         self._start_timer()
-
-    # ---------- UI sync ----------
-    def _tick(self, *_):
-        s = STATS
-        self.stats_text.value = (
-            f"↑ {fmt_bytes(s.up)}   ↓ {fmt_bytes(s.down)}   "
-            f"连接 {s.conns}   总计 {s.total}   错误 {s.errors}")
-        self.page.update()
 
     def _on_log(self, line: str):
         self.log_lines.append(line)
         if len(self.log_lines) > 200:
             del self.log_lines[0]
-        self.log_text.value = "\n".join(self.log_lines)
+        self.log_text.value = "\n".join(self.log_lines[-60:])
         try:
             self.page.update()
         except Exception:
             pass
 
     def _sync_ui(self):
-        if self.vpn_connected:
+        connected = False
+        if IS_ANDROID:
+            try:
+                import vpnctl
+                connected = vpnctl.is_running()
+            except Exception:
+                connected = False
+        else:
+            connected = ENGINE.running
+        if connected:
             self.status_dot.bgcolor = GREEN
             self.status_text.value = "已连接"
             self.status_text.color = GREEN
@@ -176,48 +177,50 @@ class AntApp:
             self.status_text.color = FG
         sel = ENGINE.selected or {}
         self.node_label.value = sel.get("Description", "")
-        self.page.update()
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
-    # ---------- actions ----------
+    # ---------- connect / disconnect ----------
     def on_connect(self, e):
         if not IS_ANDROID:
-            # 桌面调试：直接跑本地代理引擎（无 VPN）
             try:
                 ENGINE.start()
-                self.vpn_connected = True
                 proxycore.log("桌面调试：本地代理已启动（无 VPN）")
             except Exception as ex:
                 proxycore.log(f"启动失败: {ex}")
             self._sync_ui()
             return
-        try:
-            import bridge
-            if not bridge.vpn_prepare():
-                proxycore.log("等待 VPN 授权…")
-                return  # 用户授权后由 onActivityResult 链路重试（这里简化：再点一次连接）
-            self._write_vpn_state(True)
-            self.vpn_connected = True
-        except Exception as ex:
-            proxycore.log(f"VPN 建立失败: {ex}")
-        self._sync_ui()
+        def worker():
+            try:
+                import bridge, vpnctl
+                if not bridge.vpn_prepare():
+                    proxycore.log("等待 VPN 授权…授权后请再点一次「连接」")
+                    self._sync_ui()
+                    return
+                vpnctl.start_vpn()
+                proxycore.log("VPN 已连接")
+            except Exception as ex:
+                proxycore.log(f"VPN 建立失败: {ex}")
+            self._sync_ui()
+        threading.Thread(target=worker, daemon=True).start()
 
     def on_disconnect(self, e):
         if not IS_ANDROID:
             ENGINE.stop()
-            self.vpn_connected = False
             self._sync_ui()
             return
-        self._write_vpn_state(False)
-        self.vpn_connected = False
-        self._sync_ui()
+        def worker():
+            try:
+                import vpnctl
+                vpnctl.stop_vpn()
+            except Exception as ex:
+                proxycore.log(f"断开失败: {ex}")
+            self._sync_ui()
+        threading.Thread(target=worker, daemon=True).start()
 
-    def _write_vpn_state(self, connected: bool):
-        try:
-            with open(STATE_FILE, "w", encoding="utf-8") as f:
-                json.dump({"connected": connected, "ts": time.time()}, f)
-        except Exception as ex:
-            proxycore.log(f"写状态失败: {ex}")
-
+    # ---------- config / nodes ----------
     def on_toggle_global(self, e):
         ENGINE.is_global = self.switch_global.value
         self._save_config()
@@ -247,7 +250,6 @@ class AntApp:
                 ms, ok = probe_node(n)
                 results[(gid, n["Address"], n["Port"])] = (ms, ok)
         self.speed = results
-        # 组内按延迟升序排（超时/未测最后）
         for gid, nodes in ENGINE.groups.items():
             nodes.sort(key=lambda n: (results.get((gid, n["Address"], n["Port"]), (None, False))[0]
                                       if results.get((gid, n["Address"], n["Port"]), (None, False))[0] is not None
@@ -256,43 +258,50 @@ class AntApp:
         self.speed_hint.value = f"完成：{ok_count}/{len(results)} 可用"
         self.btn_speed.disabled = False
         self.refresh_nodes()
+        self._sync_ui()
 
-    # ---------- nodes ----------
     def refresh_nodes(self):
-        self.nodes_column.controls.clear()
+        self.nodes_list.controls.clear()
         for gid in sorted(ENGINE.groups.keys(), key=lambda x: int(x)):
             nodes = ENGINE.groups[gid]
-            rows = []
+            gname = nodes[0].get("Group", f"组 {gid}") if nodes else f"组 {gid}"
+            self.nodes_list.controls.append(ft.Container(
+                content=ft.Text(f"{gname}（{len(nodes)}）", color=FG_DIM, size=12,
+                                weight=ft.FontWeight.BOLD),
+                padding=ft.padding.only(left=6, top=6, bottom=2)))
             for n in nodes:
                 key = (gid, n["Address"], n["Port"])
-                ms, ok = self.speed.get(key, (None, False))
-                ms_str = f"{ms:.0f}ms" if ms is not None else ("超时" if ok is False and key in self.speed else "")
-                color = GREEN if ok else (RED if key in self.speed and ms is None else FG_DIM)
+                ms, ok = self.speed.get(key, (None, None))
+                if ms is not None:
+                    ms_str, color = f"{ms:.0f}ms", GREEN
+                elif ok is False:
+                    ms_str, color = "超时", RED
+                else:
+                    ms_str, color = "", FG_DIM
                 flag = FLAGS.get(n.get("CountryCode", ""), "")
                 selected = (ENGINE.selected.get("Address") == n["Address"]
                             and ENGINE.selected.get("Port") == n["Port"])
-                rows.append(ft.ListTile(
-                    leading=ft.Text(f"{flag}", size=16),
+                self.nodes_list.controls.append(ft.ListTile(
+                    leading=ft.Text(flag, size=15),
                     title=ft.Text(n.get("Description", f"{n['Address']}:{n['Port']}"),
-                                  color=ACCENT if selected else FG, size=13,
+                                  color=ACCENT if selected else FG, size=12,
                                   weight=ft.FontWeight.BOLD if selected else ft.FontWeight.NORMAL),
-                    subtitle=ft.Text(f"{n['Address']}:{n['Port']}  {ms_str}", color=color, size=11),
-                    on_click=lambda e, node=n, g=gid: self._pick_node(g, node),
+                    subtitle=ft.Text(f"{n['Address']}:{n['Port']}  {ms_str}",
+                                     color=color, size=10),
+                    dense=True,
+                    on_click=lambda e, node=n: self._pick_node(node),
                 ))
-            self.nodes_column.controls.append(ft.ExpansionTile(
-                title=ft.Text(f"组 {gid}（{len(nodes)} 节点）", color=FG, size=14),
-                bgcolor=BG2, collapsed_bgcolor=BG2, initially_expanded=False,
-                controls=rows))
-        self.page.update()
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
-    def _pick_node(self, gid, node):
-        ENGINE.selected = node
-        ENGINE.reload_config()  # 保持 aff 等字段
+    def _pick_node(self, node):
         ENGINE.selected = node
         self._save_config()
-        proxycore.log(f"已切换节点: {node.get('Description')} {node['Address']}:{node['Port']}")
-        self.refresh_nodes()
+        proxycore.log(f"已选节点: {node.get('Description')} {node['Address']}:{node['Port']}")
         self._sync_ui()
+        self.refresh_nodes()
 
 
 def main(page: ft.Page):

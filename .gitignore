@@ -15,7 +15,7 @@ bin/wintun.dll
 bin/mihomo/
 
 # jniLibs 的 tun2socks 由 CI 自动下载
-android/jniLibs/
+android/flet-template/{{cookiecutter.out_dir}}/android/app/src/main/jniLibs/*.so
 
 # OMC 状态
 .omc/

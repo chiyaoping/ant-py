@@ -16,14 +16,15 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Copy shared sources into android/ (flet build 打包 app 目录下所有文件)
+      - name: Copy shared sources into android/ (flet build 打包 app 目录)
         run: |
           cp proxycore.py paths.py nodes.json bypass_list.txt config.json android/
           ls android/
 
-      - name: Download hev-socks5-tunnel (arm64)
+      - name: Download hev-socks5-tunnel (arm64) into template jniLibs
         run: |
-          mkdir -p android/jniLibs/arm64-v8a
+          JNI="android/flet-template/{{cookiecutter.out_dir}}/android/app/src/main/jniLibs/arm64-v8a"
+          mkdir -p "$JNI"
           URL=$(curl -s https://api.github.com/repos/heiher/hev-socks5-tunnel/releases/latest \
             | grep browser_download_url | grep "android-arm64-v8a" | cut -d '"' -f 4 | head -1)
           echo "URL=$URL"
@@ -32,17 +33,17 @@ jobs:
             curl -s https://api.github.com/repos/heiher/hev-socks5-tunnel/releases/latest | grep browser_download_url
             exit 1
           fi
-          curl -L -o /tmp/tun2socks "$URL"
-          cp /tmp/tun2socks android/jniLibs/arm64-v8a/libtun2socks.so
-          ls -la android/jniLibs/arm64-v8a/
+          curl -L -o "$JNI/libtun2socks.so" "$URL"
+          chmod +x "$JNI/libtun2socks.so"
+          ls -la "$JNI"
 
       - name: Install flet CLI
         run: pip install "flet[all]==0.27.5" || pip install flet-cli==0.27.5
 
-      - name: Build APK (flet build,自动装 Flutter/JDK/Android SDK)
+      - name: Build APK (flet build + 自带模板含 jniLibs)
         working-directory: android
         run: |
-          flet build apk -v --module-name main --template-ref 0.27.5
+          flet build apk -v --module-name main --template ../flet-template
           find build -name "*.apk" | head -5
 
       - name: Upload APK artifact
