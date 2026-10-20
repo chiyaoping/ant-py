@@ -6,12 +6,10 @@ package.domain = org.antpy
 package.icon = assets/icon.png
 
 # source.dir 以 android/ 为主（main.py / service.py / bridge.py），
-# 桌面版核心 proxycore.py / paths.py / nodes.json / bypass_list.txt 用
-# source.include_dirs 从仓库根打包进 APK
+# 共享文件 proxycore.py / paths.py / nodes.json / bypass_list.txt 由 CI 复制进本目录后打包
 source.dir = .
 source.include_exts = py,json,txt,png
-source.include_dirs = ..:.
-source.exclude_dirs = build,dist,bin,__pycache__,.omc
+source.exclude_dirs = build,dist,bin,__pycache__,.omc,.buildozer,jniLibs
 
 requirements = python3,flet==0.24.1,cryptography==43.0.3,pyjnius,android
 

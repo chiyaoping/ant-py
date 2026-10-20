@@ -39,6 +39,11 @@ jobs:
           cp /tmp/tun2socks android/jniLibs/arm64-v8a/libtun2socks.so
           ls -la android/jniLibs/arm64-v8a/
 
+      - name: Copy shared sources into android/ (buildozer 只打包 source.dir 下的文件)
+        run: |
+          cp proxycore.py paths.py nodes.json bypass_list.txt android/
+          ls android/
+
       - name: Install buildozer
         run: pip install --upgrade pip cython==0.29.36 virtualenv && pip install buildozer
 
