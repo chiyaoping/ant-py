@@ -24,18 +24,22 @@ SERVICE_INTENT_ACTION = "org.antpy.VPN_SERVICE"
 _activity = None
 
 
-def ctx():
-    """当前应用 Context。优先用已缓存的 activity;否则用 system context（足以发起 VPN 授权对话框）。"""
+def get_activity():
+    """尝试拿当前 Activity(可能为 None —— flet 的 FlutterActivity 不在 pyjnius 线程可见范围)。"""
     global _activity
     if _activity is None:
         try:
-            from jnius import autoclass as _ac
-            act_cls = _ac("android.app.Activity")
             _activity = ActivityThread.currentActivity()
         except Exception:
             _activity = None
-    if _activity is not None:
-        return _activity
+    return _activity
+
+
+def ctx():
+    """当前应用 Context。"""
+    act = get_activity()
+    if act is not None:
+        return act
     return ActivityThread.currentApplication()
 
 
@@ -44,12 +48,17 @@ def app_uid() -> int:
 
 
 def vpn_prepare() -> bool:
-    """检查/请求 VPN 权限。返回 True 表示已授权；False 表示已弹出系统授权对话框。"""
-    act = ctx()
-    intent = VpnService.prepare(act)
+    """检查/请求 VPN 权限。返回 True 表示已授权；False 表示已弹出系统授权对话框。
+
+    授权对话框经 startActivity(FLAG_ACTIVITY_NEW_TASK) 发起 —— Application 上下文
+    没有 startActivityForResult;用户授权后需再点一次「连接」(简化实现)。
+    """
+    c = ctx()
+    intent = VpnService.prepare(c)
     if intent is None:
         return True
-    act.startActivityForResult(intent, 7001)
+    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    c.startActivity(intent)
     return False
 
 
